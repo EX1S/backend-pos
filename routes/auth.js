@@ -1,12 +1,11 @@
 const { Router } = require('express');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const auth = require('../middleware/authMiddleware');
 
 const router = Router();
 
-//POST /api/auth/login
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -18,7 +17,7 @@ router.post('/login', async (req, res) => {
     const emailLower = email.toLowerCase().trim();
 
     const q = `
-      SELECT id, nombre, email, password_hash, rol
+      SELECT id, nombre, email, password
       FROM usuarios
       WHERE LOWER(email)=LOWER($1)
       LIMIT 1
@@ -30,15 +29,15 @@ router.post('/login', async (req, res) => {
 
     const user = r.rows[0];
 
-    const ok = await bcrypt.compare(password, user.password_hash);
+    // Comparación simple (sin bcrypt)
+    const ok = password === user.password;
     if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
-        rol: user.rol,
-        nombre: user.nombre,
+        nombre: user.nombre
       },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
@@ -49,8 +48,7 @@ router.post('/login', async (req, res) => {
       usuario: {
         id: user.id,
         email: user.email,
-        rol: user.rol,
-        nombre: user.nombre,
+        nombre: user.nombre
       },
     });
 
@@ -60,13 +58,13 @@ router.post('/login', async (req, res) => {
   }
 });
 
-//GET/api/auth/me
+// GET /api/auth/me
 router.get('/me', auth, async (req, res) => {
   const { id } = req.user;
 
   try {
     const r = await pool.query(
-      'SELECT id, nombre, email, rol FROM usuarios WHERE id=$1',
+      'SELECT id, nombre, email FROM usuarios WHERE id=$1',
       [id]
     );
 
