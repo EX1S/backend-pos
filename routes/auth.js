@@ -5,7 +5,10 @@ const auth = require('../middleware/authMiddleware');
 
 const router = Router();
 
-// POST /api/auth/login
+/* ============================================
+   POST /api/auth/login
+   Login con comparación de contraseña en texto plano
+   ============================================ */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -29,7 +32,7 @@ router.post('/login', async (req, res) => {
 
     const user = r.rows[0];
 
-    // Comparación simple (sin bcrypt)
+    // Comparación simple (texto plano)
     const ok = password === user.password;
     if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
 
@@ -58,7 +61,10 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me
+/* ============================================
+   GET /api/auth/me
+   Verificar usuario logueado
+   ============================================ */
 router.get('/me', auth, async (req, res) => {
   const { id } = req.user;
 
@@ -76,6 +82,33 @@ router.get('/me', auth, async (req, res) => {
   } catch (e) {
     console.error('Error en /me:', e);
     res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+/* ============================================
+   ⚠️ RUTA TEMPORAL DE EMERGENCIA
+   Restablece la contraseña para pruebas en producción.
+   Úsala SOLO para entrar la primera vez.
+   Luego ELIMÍNALA.
+   ============================================ */
+router.get("/reset-password", async (req, res) => {
+  try {
+    const email = "dede117gamer@gmail.com";  // cambia aquí si ocupas otro user
+    const nueva = "123456";                 // contraseña temporal
+
+    await pool.query(
+      "UPDATE usuarios SET password = $1 WHERE email = $2",
+      [nueva, email]
+    );
+
+    res.json({
+      ok: true,
+      msg: "Contraseña actualizada a 123456 (texto plano)"
+    });
+
+  } catch (e) {
+    console.error("Error reset-password:", e);
+    res.status(500).json({ error: e.message });
   }
 });
 
