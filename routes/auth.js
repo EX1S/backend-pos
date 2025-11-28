@@ -2,13 +2,11 @@ const { Router } = require('express');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/connection');
 const auth = require('../middleware/authMiddleware');
+const bcrypt = require('bcryptjs');
 
 const router = Router();
 
-/* ============================================
-   POST /api/auth/login
-   Login con comparación de contraseña en texto plano
-   ============================================ */
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -20,7 +18,7 @@ router.post('/login', async (req, res) => {
     const emailLower = email.toLowerCase().trim();
 
     const q = `
-      SELECT id, nombre, email, password
+      SELECT id, nombre, email, password_hash
       FROM usuarios
       WHERE LOWER(email)=LOWER($1)
       LIMIT 1
@@ -32,9 +30,11 @@ router.post('/login', async (req, res) => {
 
     const user = r.rows[0];
 
-    // Comparación simple (texto plano)
-    const ok = password === user.password;
-    if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
+    // Comparar hash real
+    const ok = await bcrypt.compare(password, user.password_hash);
+
+    if (!ok)
+      return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign(
       {
@@ -61,55 +61,25 @@ router.post('/login', async (req, res) => {
   }
 });
 
-/* ============================================
-   GET /api/auth/me
-   Verificar usuario logueado
-   ============================================ */
-router.get('/me', auth, async (req, res) => {
-  const { id } = req.user;
 
+// Ruta temporal para resetear contraseña
+router.get('/reset-password', async (req, res) => {
   try {
-    const r = await pool.query(
-      'SELECT id, nombre, email FROM usuarios WHERE id=$1',
-      [id]
-    );
+    const nueva = await bcrypt.hash("123456", 10);
 
-    if (!r.rowCount)
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+    await pool.query(`
+      UPDATE usuarios
+      SET password_hash=$1
+      WHERE email='dede117gamer@gmail.com'
+    `, [nueva]);
 
-    res.json(r.rows[0]);
+    res.json({ ok: true, msg: "Contraseña cambiada a 123456" });
 
   } catch (e) {
-    console.error('Error en /me:', e);
-    res.status(500).json({ error: 'Error del servidor' });
-  }
-});
-
-/* ============================================
-   ⚠️ RUTA TEMPORAL DE EMERGENCIA
-   Restablece la contraseña para pruebas en producción.
-   Úsala SOLO para entrar la primera vez.
-   Luego ELIMÍNALA.
-   ============================================ */
-router.get("/reset-password", async (req, res) => {
-  try {
-    const email = "dede117gamer@gmail.com";  // cambia aquí si ocupas otro user
-    const nueva = "123456";                 // contraseña temporal
-
-    await pool.query(
-      "UPDATE usuarios SET password = $1 WHERE email = $2",
-      [nueva, email]
-    );
-
-    res.json({
-      ok: true,
-      msg: "Contraseña actualizada a 123456 (texto plano)"
-    });
-
-  } catch (e) {
-    console.error("Error reset-password:", e);
+    console.error(e);
     res.status(500).json({ error: e.message });
   }
 });
+
 
 module.exports = router;
